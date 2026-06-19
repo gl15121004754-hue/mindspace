@@ -200,12 +200,10 @@ describe('Privacy Settings', () => {
   it('should calculate storage stats correctly', () => {
     const mockStats = {
       emotionCount: 5,
-      chatCount: 3,
       storageSize: '1.2 KB'
     }
 
     expect(mockStats.emotionCount).toBe(5)
-    expect(mockStats.chatCount).toBe(3)
     expect(mockStats.storageSize).toBe('1.2 KB')
   })
 })
