@@ -6,7 +6,11 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
-    environment: 'node', // Use 'node' instead of 'jsdom' for utility tests
+    // jsdom is the default: setup.ts imports @testing-library/jest-dom (needs
+    // document), and most tests render React components. Pure-logic tests are
+    // unaffected by the DOM environment. Individual files can opt out with a
+    // `// @vitest-environment node` directive if needed.
+    environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     css: true,
   },

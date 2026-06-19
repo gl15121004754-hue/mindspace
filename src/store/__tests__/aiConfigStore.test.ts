@@ -5,8 +5,6 @@
  * resolve the user's *selected* model (from defaultModels), not a hardcoded
  * provider default. Before this refactor, enhancedChatService read its own
  * private PROVIDER_CONFIG and ignored the store entirely.
- *
- * @vitest-environment jsdom
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
