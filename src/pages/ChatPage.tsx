@@ -21,8 +21,9 @@ const ChatPage: React.FC = () => {
     bodyFeelings?: string[]
     customInput?: string
     empathyMessage?: string
+    seedMessage?: string  // from DailyRecordPage "想再聊聊" (Issue #7)
   }
-  
+
   const sosContext = location.state as SOSContext
 
   const currentConversation = useChatStore((state) => state.getCurrentConversation())
@@ -80,6 +81,16 @@ const ChatPage: React.FC = () => {
       createConversation()
     }
   }, [sosContext, createConversation, addMessage, currentConversation, sosContext])
+
+  // Seed the input with a message carried from DailyRecordPage (Issue #7).
+  // Pre-fill only — let the user review and send, never auto-send.
+  const hasSeededMessage = useRef(false)
+  useEffect(() => {
+    if (sosContext?.seedMessage && !hasSeededMessage.current) {
+      hasSeededMessage.current = true
+      setInputValue(sosContext.seedMessage)
+    }
+  }, [sosContext])
 
   // 调试：打印对话历史状态
   useEffect(() => {

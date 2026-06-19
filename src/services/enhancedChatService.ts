@@ -1,6 +1,6 @@
 import type { Message } from '../types'
-import { getApiKey } from '../lib/aiKeyManager'
-import type { AIProviderId } from '../types/aiProvider'
+import { useAIConfigStore } from '../store/aiConfigStore'
+import { detectCrisis, CRISIS_HOTLINE } from '../lib/crisisDetection'
 
 // 消息类型
 interface ChatMessage {
@@ -16,32 +16,10 @@ interface AIResponse {
   emotionTags?: string[]
 }
 
-// 提供商API配置
-const PROVIDER_CONFIG: Record<AIProviderId, { apiUrl: string; model: string }> = {
-  openai: {
-    apiUrl: 'https://api.openai.com/v1/chat/completions',
-    model: 'gpt-4o-mini'
-  },
-  zhipu: {
-    apiUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
-    model: 'glm-4-flash'
-  },
-  grok: {
-    apiUrl: 'https://api.x.ai/v1/chat/completions',
-    model: 'grok-4'
-  },
-  deepseek: {
-    apiUrl: 'https://api.deepseek.com/chat/completions',
-    model: 'deepseek-chat'
-  },
-  minimax: {
-    apiUrl: 'https://api.minimax.chat/v1/text/chatcompletion_v2',
-    model: 'MiniMax-M2.1'
-  },
-  alibaba: {
-    apiUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-    model: 'qwen-plus'
-  }
+/** Endpoint + model resolved by the store from the single catalog. */
+interface EndpointConfig {
+  apiUrl: string
+  model: string
 }
 
 // MindSpace核心系统提示词
@@ -74,11 +52,7 @@ const MINDSPACE_SYSTEM_PROMPT = `你是 MindSpace，一个温暖真诚的AI伙�
 4. 对话要像微信聊天，简洁自然
 5. 每次回复不超过60字，保持对话流动性`
 
-// 危机关键词检测
-const CRISIS_KEYWORDS = {
-  panic: ['喘不上气', '手在抖', '心跳好快', '要疯了', '崩溃', '惊恐'],
-  self_harm: ['不想活了', '想结束', '想死', '自杀', '自残']
-}
+// 危机关键词检测与热线见 lib/crisisDetection（chat 与每日记录共用，Issue #8）
 
 // 情绪关键词映射
 const EMOTION_KEYWORDS = {
@@ -89,64 +63,7 @@ const EMOTION_KEYWORDS = {
   stress: ['压力', '压抑', '喘不过气', '承受不住']
 }
 
-// 获取存储的配置
-function getStoredConfig(): { selectedProvider: AIProviderId; customApiKeys: Record<string, string> } {
-  if (typeof window === 'undefined') {
-    return { selectedProvider: 'alibaba', customApiKeys: {} }
-  }
-  
-  try {
-    const stored = localStorage.getItem('mindspace-ai-config')
-    if (stored) {
-      return JSON.parse(stored)
-    }
-  } catch (error) {
-    console.error('[AI Config] 读取配置失败:', error)
-  }
-  
-  return { selectedProvider: 'alibaba', customApiKeys: {} }
-}
-
-// 获取当前提供商和API Key
-function getProviderApiKey(): { key: string; provider: AIProviderId } {
-  const config = getStoredConfig()
-  const provider = config.selectedProvider
-  
-  // 检查该提供商是否有自定义key
-  const customKey = config.customApiKeys?.[provider]
-  if (customKey?.trim()) {
-    return { key: customKey.trim(), provider }
-  }
-  
-  // 从aiKeyManager获取（会检查env变量）
-  const { key } = getApiKey(provider)
-  if (key) {
-    return { key, provider }
-  }
-  
-  return { key: '', provider }
-}
-
-/**
- * 检测危机关键词
- */
-function detectCrisis(text: string): { crisis: boolean; type?: 'panic' | 'self_harm' } {
-  const lowerText = text.toLowerCase()
-  
-  for (const keyword of CRISIS_KEYWORDS.self_harm) {
-    if (lowerText.includes(keyword)) {
-      return { crisis: true, type: 'self_harm' }
-    }
-  }
-  
-  for (const keyword of CRISIS_KEYWORDS.panic) {
-    if (lowerText.includes(keyword)) {
-      return { crisis: true, type: 'panic' }
-    }
-  }
-  
-  return { crisis: false }
-}
+// detectCrisis 已移至 lib/crisisDetection（与每日记录共用，Issue #8）
 
 /**
  * 提取情绪标签
@@ -169,24 +86,21 @@ function extractEmotionTags(text: string): string[] {
  */
 async function callAIAPI(
   messages: ChatMessage[],
-  provider: AIProviderId,
+  endpoint: EndpointConfig,
   apiKey: string,
   onStream?: (chunk: string) => void
 ): Promise<string> {
-  const config = PROVIDER_CONFIG[provider]
-  
   console.log('🔍 准备调用 AI API')
-  console.log('📤 提供商:', provider)
-  console.log('📤 API URL:', config.apiUrl)
-  console.log('📤 模型:', config.model)
+  console.log('📤 API URL:', endpoint.apiUrl)
+  console.log('📤 模型:', endpoint.model)
   console.log('🔑 API Key前缀:', apiKey.substring(0, 10) + '...')
   console.log('💬 消息数量:', messages.length)
   console.log('🌊 流式响应模式:', !!onStream)
 
   if (onStream) {
-    return await callOpenAIStream(messages, onStream, apiKey, config)
+    return await callOpenAIStream(messages, onStream, apiKey, endpoint)
   } else {
-    return await callOpenAINonStream(messages, apiKey, config)
+    return await callOpenAINonStream(messages, apiKey, endpoint)
   }
 }
 
@@ -352,14 +266,24 @@ export async function sendChatMessage(
   // 情绪标签提取
   const emotionTags = extractEmotionTags(userMessage)
   console.log('🏷️ 情绪标签:', emotionTags)
-  
-  // 获取提供商配置
-  const { key: apiKey, provider } = getProviderApiKey()
+
+  // Resolve provider/url/model/key from the store (single source of truth).
+  const { provider, apiUrl, model, apiKey } = useAIConfigStore.getState().resolveChatConfig()
   console.log('📤 使用提供商:', provider)
-  
+
+  if (!apiUrl || !model) {
+    console.log('[AI Config] 未知提供商，使用备用回复')
+    return {
+      content: generateFallbackResponse(userMessage),
+      needsSOS: false,
+      crisis: false,
+      emotionTags
+    }
+  }
+
   if (!apiKey) {
     console.log('[AI Config] 未配置 API Key，使用备用回复')
-    const fallbackContent = generateFallbackResponse(userMessage) + 
+    const fallbackContent = generateFallbackResponse(userMessage) +
       '\n\n💡 小提示：你可以去「AI 设置」页面配置 API Key，让我变得更聪明哦~'
     return {
       content: fallbackContent,
@@ -387,7 +311,7 @@ export async function sendChatMessage(
     }
 
     // 调用AI API
-    const content = await callAIAPI(fullMessages, provider, apiKey, onStream)
+    const content = await callAIAPI(fullMessages, { apiUrl, model }, apiKey, onStream)
     
     return {
       content,
@@ -422,9 +346,9 @@ export async function sendChatMessage(
 function handleCrisisResponse(crisisType?: 'panic' | 'self_harm'): AIResponse {
   if (crisisType === 'self_harm') {
     const options = [
-      '我听到了你的痛苦，这一刻一定很难熬🌙\n\n但请记住，你不是一个人。如果需要专业帮助，可以拨打心理援助热线：400-161-9995',
-      '我能感受到你现在的痛苦，请给自己一个机会💙\n\n专业帮助可以拨打心理援助热线：400-161-9995，有人愿意支持你',
-      '这种时候真的很难熬，我理解你的感受🫂\n\n但请相信，还有人在乎你。心理援助热线：400-161-9995'
+      `我听到了你的痛苦，这一刻一定很难熬🌙\n\n但请记住，你不是一个人。如果需要专业帮助，可以拨打心理援助热线：${CRISIS_HOTLINE}`,
+      `我能感受到你现在的痛苦，请给自己一个机会💙\n\n专业帮助可以拨打心理援助热线：${CRISIS_HOTLINE}，有人愿意支持你`,
+      `这种时候真的很难熬，我理解你的感受🫂\n\n但请相信，还有人在乎你。心理援助热线：${CRISIS_HOTLINE}`
     ]
     return {
       content: options[Math.floor(Math.random() * options.length)],

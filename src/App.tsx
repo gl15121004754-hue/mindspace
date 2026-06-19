@@ -8,6 +8,8 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 // Pages
 import HomePage from './pages/HomePage'
 import ChatPage from './pages/ChatPage'
+import DailyRecordPage from './pages/DailyRecordPage'
+import TimelinePage from './pages/TimelinePage'
 import InsightPage from './pages/InsightPage'
 import SOSEmotionPage from './pages/SOSEmotionPage'
 import SOSAnalysisPage from './pages/SOSAnalysisPage'
@@ -15,7 +17,6 @@ import SOSCardPage from './pages/SOSCardPage'
 import SOSCompletePage from './pages/SOSCompletePage'
 import SOSFeedbackPage from './pages/SOSFeedbackPage'
 import SOSCelebrationPage from './pages/SOSCelebrationPage'
-import UserProfilePage from './pages/UserProfilePage'
 import SettingsPage from './pages/SettingsPage'
 import AccountPage from './pages/AccountPage'
 
@@ -53,6 +54,36 @@ function App() {
                   transition={{ duration: 0.3 }}
                 >
                   <ChatPage />
+                </motion.div>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/daily-record"
+            element={
+              <ProtectedRoute>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <DailyRecordPage />
+                </motion.div>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/timeline"
+            element={
+              <ProtectedRoute>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <TimelinePage />
                 </motion.div>
               </ProtectedRoute>
             }
@@ -174,20 +205,6 @@ function App() {
                 transition={{ duration: 0.3 }}
               >
                 <AccountPage />
-              </motion.div>
-            }
-          />
-          {/* 用户资料页面 */}
-          <Route
-            path="/profile"
-            element={
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <UserProfilePage />
               </motion.div>
             }
           />

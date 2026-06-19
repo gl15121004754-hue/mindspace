@@ -2,39 +2,64 @@ import { describe, it, beforeEach, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import SettingsPage from '../SettingsPage'
-import { useAIConfigStore } from '../../store/aiConfigStore'
 import { BrowserRouter } from 'react-router-dom'
 
-vi.mock('../../store/aiConfigStore')
+// --- Mock useAIConfigStore --------------------------------------------------
+// Children (ProviderSelector, ApiKeySection, ModelSelector) read via selector
+// form: useAIConfigStore(state => state.x). The mock applies the selector to a
+// shared state object (hoisted so the vi.mock factory can reference it).
 
-const renderWithRouter = (component: React.ReactNode) => {
-  return render(<BrowserRouter>{component}</BrowserRouter>)
-}
+type StoreLike = Record<string, any>
 
-describe('SettingsPage', () => {
-  const mockStore = {
+const { configStoreState } = vi.hoisted(() => ({
+  configStoreState: {
     selectedProvider: 'openai',
-    selectedModel: 'gpt-4o-mini',
     customApiKeys: {},
     defaultModels: {},
     models: [],
     setProvider: vi.fn(),
     setApiKey: vi.fn(),
     clearApiKey: vi.fn(),
-    setDefaultModel: vi.fn(),
-    setSelectedModel: vi.fn(),
-    validateApiKey: vi.fn(),
-    isProviderConfigured: vi.fn(),
-    getApiKey: vi.fn(),
-    getApiBase: vi.fn(),
-    getCurrentModel: vi.fn(),
-    getSelectedAIModel: vi.fn(),
-    getProviderModels: vi.fn(),
-  }
+    setModel: vi.fn(),
+    validateApiKey: vi.fn(async () => true),
+    isProviderConfigured: vi.fn(() => false),
+    getApiKey: vi.fn(() => undefined),
+    getApiBase: vi.fn(() => 'https://api.openai.com/v1'),
+    getCurrentModel: vi.fn(() => 'gpt-4o-mini'),
+    getProviderModels: vi.fn(() => []),
+    resolveChatConfig: vi.fn(() => ({
+      provider: 'openai',
+      apiUrl: 'https://api.openai.com/v1/chat/completions',
+      model: 'gpt-4o-mini',
+      apiKey: '',
+    })),
+  } as StoreLike,
+}))
 
+vi.mock('../../store/aiConfigStore', () => ({
+  useAIConfigStore: Object.assign(
+    vi.fn((selector?: (s: StoreLike) => any) =>
+      typeof selector === 'function' ? selector(configStoreState) : configStoreState
+    ),
+    {
+      getState: () => configStoreState,
+      setState: (partial: Partial<StoreLike>) => Object.assign(configStoreState, partial),
+    }
+  ),
+}))
+
+const renderWithRouter = (component: React.ReactNode) => {
+  return render(<BrowserRouter>{component}</BrowserRouter>)
+}
+
+describe('SettingsPage', () => {
   beforeEach(() => {
-    vi.mocked(useAIConfigStore).mockReturnValue(mockStore)
-    mockStore.isProviderConfigured.mockReturnValue(false)
+    configStoreState.selectedProvider = 'openai'
+    configStoreState.customApiKeys = {}
+    configStoreState.defaultModels = {}
+    configStoreState.isProviderConfigured = vi.fn(() => false)
+    configStoreState.setProvider = vi.fn()
+    configStoreState.validateApiKey = vi.fn(async () => true)
   })
 
   it('should render the settings page with all sections', () => {
@@ -45,24 +70,21 @@ describe('SettingsPage', () => {
     expect(screen.getByText('选择提供商')).toBeInTheDocument()
     expect(screen.getByText('选择您偏好的 AI 服务提供商')).toBeInTheDocument()
     expect(screen.getByText('选择模型')).toBeInTheDocument()
-    expect(screen.getByText('为选中的提供商选择默认模型')).toBeInTheDocument()
   })
 
-  it('should render all 7 provider cards', () => {
-    renderWithRouter(<SettingsPage />)
+  it('should render all 6 provider cards from the catalog', () => {
+    const { container } = renderWithRouter(<SettingsPage />)
 
-    const providers = [
-      'OpenAI',
-      'Zhipu AI',
-      'Grok',
-      'Google Gemini',
-      'DeepSeek',
-      'MiniMax',
-      'Alibaba DashScope'
-    ]
+    // Catalog display names (config/aiCatalog.ts). 6 providers, no Gemini.
+    const providers = ['OpenAI', '智谱AI', 'Grok', 'DeepSeek', 'MiniMax', '阿里云通义千问']
 
-    providers.forEach(provider => {
-      expect(screen.getByText(provider)).toBeInTheDocument()
+    // Provider cards render as role=radio; assert 6 of them, plus each name.
+    const radios = screen.getAllByRole('radio')
+    expect(radios.length).toBeGreaterThanOrEqual(6)
+
+    providers.forEach((provider) => {
+      const found = container.textContent?.includes(provider)
+      expect(found).toBe(true)
     })
   })
 
@@ -73,7 +95,7 @@ describe('SettingsPage', () => {
     const openaiButton = screen.getByRole('radio', { name: /OpenAI/ })
     await user.click(openaiButton)
 
-    expect(mockStore.setProvider).toHaveBeenCalledWith('openai')
+    expect(configStoreState.setProvider).toHaveBeenCalledWith('openai')
   })
 
   it('should support keyboard navigation for provider selection', async () => {
@@ -88,25 +110,17 @@ describe('SettingsPage', () => {
 
     await user.keyboard('{ArrowRight}')
     await waitFor(() => {
-      expect(mockStore.setProvider).toHaveBeenCalled()
+      expect(configStoreState.setProvider).toHaveBeenCalled()
     })
   })
 })
 
 describe('ProviderSelector', () => {
-  const mockStore = {
-    selectedProvider: 'openai',
-    setProvider: vi.fn(),
-    isProviderConfigured: vi.fn(),
-  }
-
   beforeEach(() => {
-    vi.mocked(useAIConfigStore).mockReturnValue(mockStore as any)
+    configStoreState.isProviderConfigured = vi.fn((provider: string) => provider === 'openai')
   })
 
   it('should show configuration status for providers', () => {
-    mockStore.isProviderConfigured.mockImplementation((provider: string) => provider === 'openai')
-
     renderWithRouter(<SettingsPage />)
 
     const openaiButton = screen.getByRole('radio', { name: /OpenAI/ })
@@ -115,36 +129,6 @@ describe('ProviderSelector', () => {
 })
 
 describe('ModelSelector', () => {
-  const mockModels = [
-    {
-      id: 'gpt-4o',
-      name: 'GPT-4o',
-      provider: 'openai' as const,
-      contextLength: 128000,
-      supportsStreaming: true
-    },
-    {
-      id: 'gpt-4o-mini',
-      name: 'GPT-4o Mini',
-      provider: 'openai' as const,
-      contextLength: 128000,
-      supportsStreaming: true
-    }
-  ]
-
-  const mockStore = {
-    selectedProvider: 'openai',
-    selectedModel: 'gpt-4o-mini',
-    setProvider: vi.fn(),
-    setSelectedModel: vi.fn(),
-    isProviderConfigured: vi.fn(),
-    getProviderModels: vi.fn(() => mockModels),
-  }
-
-  beforeEach(() => {
-    vi.mocked(useAIConfigStore).mockReturnValue(mockStore as any)
-  })
-
   it('should display model metadata including context length and streaming badge', async () => {
     renderWithRouter(<SettingsPage />)
 

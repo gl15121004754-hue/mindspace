@@ -1,27 +1,30 @@
 import React, { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { useAIConfigStore } from '../../store/aiConfigStore'
-import { MODEL_REGISTRY } from '../../config/models'
+import { MODEL_REGISTRY } from '../../config/aiCatalog'
 
 const ModelSelector: React.FC = () => {
   const selectedProvider = useAIConfigStore((state) => state.selectedProvider)
-  const selectedModel = useAIConfigStore((state) => state.selectedModel)
-  const setSelectedModel = useAIConfigStore((state) => state.setSelectedModel)
+  const setModel = useAIConfigStore((state) => state.setModel)
   const prevModelRef = useRef<string | null>(null)
 
   const models = MODEL_REGISTRY.getByProvider(selectedProvider)
+  // Effective model for this provider = user choice, else catalog default.
+  const effectiveModelId = useAIConfigStore((state) =>
+    state.defaultModels[selectedProvider] ?? models[0]?.id
+  )
 
   const handleModelClick = (modelId: string) => {
-    setSelectedModel(modelId)
+    setModel(selectedProvider, modelId)
   }
 
   useEffect(() => {
-    if (selectedModel && selectedModel !== prevModelRef.current) {
-      const button = document.querySelector(`[data-model="${selectedModel}"]`) as HTMLButtonElement
+    if (effectiveModelId && effectiveModelId !== prevModelRef.current) {
+      const button = document.querySelector(`[data-model="${effectiveModelId}"]`) as HTMLButtonElement
       button?.focus()
-      prevModelRef.current = selectedModel
+      prevModelRef.current = effectiveModelId
     }
-  }, [selectedModel])
+  }, [effectiveModelId])
 
   const handleKeyDown = (e: React.KeyboardEvent, modelId: string) => {
     const modelIds = models.map(m => m.id)
@@ -31,20 +34,20 @@ const ModelSelector: React.FC = () => {
       case 'ArrowDown':
         e.preventDefault()
         const nextIndex = (currentIndex + 1) % modelIds.length
-        setSelectedModel(modelIds[nextIndex])
+        setModel(selectedProvider, modelIds[nextIndex])
         break
       case 'ArrowUp':
         e.preventDefault()
         const prevIndex = (currentIndex - 1 + modelIds.length) % modelIds.length
-        setSelectedModel(modelIds[prevIndex])
+        setModel(selectedProvider, modelIds[prevIndex])
         break
       case 'Home':
         e.preventDefault()
-        setSelectedModel(modelIds[0])
+        setModel(selectedProvider, modelIds[0])
         break
       case 'End':
         e.preventDefault()
-        setSelectedModel(modelIds[modelIds.length - 1])
+        setModel(selectedProvider, modelIds[modelIds.length - 1])
         break
       case 'Enter':
       case ' ':
@@ -88,7 +91,7 @@ const ModelSelector: React.FC = () => {
       aria-label="选择 AI 模型"
     >
       {models.map((model, index) => {
-        const isSelected = selectedModel === model.id
+        const isSelected = effectiveModelId === model.id
 
         return (
           <motion.button

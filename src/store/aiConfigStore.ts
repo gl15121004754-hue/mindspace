@@ -1,50 +1,66 @@
 import { create } from 'zustand';
 import type { AIProviderId } from '../types/aiProvider';
-import { DEFAULT_PROVIDER, AI_PROVIDERS } from '../types/aiProvider';
-import { MODEL_REGISTRY, type AIModel } from '../config/models';
+import { DEFAULT_PROVIDER } from '../types/aiProvider';
+import {
+  PROVIDER_CATALOG,
+  MODEL_REGISTRY,
+  getProvider,
+  resolveChatEndpoint,
+  type AIModel,
+} from '../config/aiCatalog';
 import { validateApiKey as validateKey, isProviderConfigured as checkConfigured } from '../lib/aiKeyManager';
-import { adapterFactory } from '../adapters/AdapterFactory';
 
 const STORAGE_KEY = 'mindspace-ai-config';
 
+/**
+ * Shape persisted to localStorage. Holds only the user's mutable choices:
+ * selected provider, per-provider keys, and per-provider chosen model.
+ */
 interface StoredConfig {
   selectedProvider: AIProviderId;
   customApiKeys: Partial<Record<AIProviderId, string>>;
+  /** The user's chosen model id per provider (effective selection). */
   defaultModels: Partial<Record<AIProviderId, string>>;
 }
 
+/** Everything the chat path needs behind one seam. */
+export interface ChatConfig {
+  apiUrl: string;
+  model: string;
+  apiKey: string;
+  provider: AIProviderId;
+}
+
 interface AIConfigStore extends StoredConfig {
-  // Models state
+  // Derived state
   models: AIModel[];
-  selectedModel: string | null;
 
   // Actions
   setProvider: (provider: AIProviderId) => void;
   setApiKey: (provider: AIProviderId, apiKey: string) => void;
   clearApiKey: (provider: AIProviderId) => void;
-  setDefaultModel: (provider: AIProviderId, model: string) => void;
-  setSelectedModel: (modelId: string) => void;
+  setModel: (provider: AIProviderId, modelId: string) => void;
   validateApiKey: (provider: AIProviderId, apiKey: string) => Promise<boolean>;
   isProviderConfigured: (provider: AIProviderId) => boolean;
 
-  // Getters
+  // Getters — all read static data from the catalog, not a local copy.
   getApiKey: (provider: AIProviderId) => string | undefined;
   getApiBase: (provider: AIProviderId) => string | undefined;
   getCurrentModel: () => string;
-  getSelectedAIModel: () => AIModel | undefined;
   getProviderModels: (provider: AIProviderId) => AIModel[];
+  /** Resolve everything the chat path needs, in one call. */
+  resolveChatConfig: () => ChatConfig;
 }
 
-const loadFromStorage = (): StoredConfig & { models: AIModel[]; selectedModel: string | null } => {
-  if (typeof window === 'undefined') {
-    return {
-      selectedProvider: DEFAULT_PROVIDER,
-      customApiKeys: {},
-      defaultModels: {},
-      models: MODEL_REGISTRY.getAll(),
-      selectedModel: null,
-    };
-  }
+const loadFromStorage = (): StoredConfig & { models: AIModel[] } => {
+  const fallback = {
+    selectedProvider: DEFAULT_PROVIDER,
+    customApiKeys: {},
+    defaultModels: {},
+    models: MODEL_REGISTRY.getAll(),
+  };
+
+  if (typeof window === 'undefined') return fallback;
 
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -55,20 +71,13 @@ const loadFromStorage = (): StoredConfig & { models: AIModel[]; selectedModel: s
         customApiKeys: parsed.customApiKeys ?? {},
         defaultModels: parsed.defaultModels ?? {},
         models: MODEL_REGISTRY.getAll(),
-        selectedModel: null,
       };
     }
   } catch (error) {
     console.error('Failed to load AI config from storage:', error);
   }
 
-  return {
-    selectedProvider: DEFAULT_PROVIDER,
-    customApiKeys: {},
-    defaultModels: {},
-    models: MODEL_REGISTRY.getAll(),
-    selectedModel: null,
-  };
+  return fallback;
 };
 
 const saveToStorage = (config: StoredConfig) => {
@@ -111,37 +120,17 @@ export const useAIConfigStore = create<AIConfigStore>((set, get) => {
       saveToStorage({ ...get() });
     },
 
-    setDefaultModel: (provider, model) => {
+    setModel: (provider, modelId) => {
       set((state) => ({
         defaultModels: {
           ...state.defaultModels,
-          [provider]: model,
+          [provider]: modelId,
         },
       }));
       saveToStorage({ ...get() });
     },
 
-    setSelectedModel: (modelId) => {
-      set({ selectedModel: modelId });
-      saveToStorage({ ...get() });
-    },
-
-    validateApiKey: async (provider, apiKey) => {
-      // MiniMax 和部分提供商使用简化的直接验证，避免 CORS 问题
-      if (provider === 'minimax' || provider === 'zhipu') {
-        return validateKey(provider, apiKey);
-      }
-      
-      try {
-        const adapter = adapterFactory.getAdapter(provider);
-        if (adapter.validateApiKey) {
-          return adapter.validateApiKey(apiKey);
-        }
-      } catch {
-        // Fall back to default validation if adapter doesn't support it
-      }
-      return validateKey(provider, apiKey);
-    },
+    validateApiKey: async (provider, apiKey) => validateKey(provider, apiKey),
 
     isProviderConfigured: (provider) => {
       return checkConfigured(provider);
@@ -152,26 +141,35 @@ export const useAIConfigStore = create<AIConfigStore>((set, get) => {
     },
 
     getApiBase: (provider) => {
-      return AI_PROVIDERS[provider]?.apiBase;
+      return getProvider(provider)?.apiBase;
     },
 
     getCurrentModel: () => {
       const state = get();
       const provider = state.selectedProvider;
-
-      // Use custom model if set, otherwise use provider's default
-      return state.defaultModels[provider] ?? AI_PROVIDERS[provider]?.defaultModel ?? '';
-    },
-
-    getSelectedAIModel: () => {
-      const state = get();
-      if (!state.selectedModel) return undefined;
-      const provider = state.selectedProvider;
-      return MODEL_REGISTRY.getById(provider, state.selectedModel);
+      // User's chosen model wins; otherwise the catalog default.
+      return (
+        state.defaultModels[provider] ?? PROVIDER_CATALOG[provider]?.defaultModel ?? ''
+      );
     },
 
     getProviderModels: (provider) => {
       return MODEL_REGISTRY.getByProvider(provider);
+    },
+
+    resolveChatConfig: () => {
+      const state = get();
+      const provider = state.selectedProvider;
+      const entry = PROVIDER_CATALOG[provider];
+      const model =
+        state.defaultModels[provider] ?? entry?.defaultModel ?? '';
+      const apiKey = state.customApiKeys[provider]?.trim() ?? '';
+      return {
+        provider,
+        apiUrl: resolveChatEndpoint(provider),
+        model,
+        apiKey,
+      };
     },
   };
 });
@@ -180,4 +178,4 @@ export const useAIConfigStore = create<AIConfigStore>((set, get) => {
 export const selectCurrentProvider = (state: AIConfigStore) => state.selectedProvider;
 export const selectCurrentModel = (state: AIConfigStore) => state.getCurrentModel();
 export const selectHasApiKey = (provider: AIProviderId) => (state: AIConfigStore) =>
-  !!state.getApiKey(provider) || !AI_PROVIDERS[provider]?.requiresApiKey;
+  !!state.getApiKey(provider);

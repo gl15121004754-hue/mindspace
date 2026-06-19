@@ -2,7 +2,6 @@ import { get, set, del } from 'idb-keyval'
 import { v4 as uuidv4 } from 'uuid'
 import type { UserProfile, RegisterForm, UserStats } from '../types/user'
 import { emotionStorage } from './storageService'
-import { chatStorage } from './storageService'
 
 // 存储键名
 const USER_KEY = 'mindspace_user'
@@ -91,25 +90,21 @@ export const userService = {
 
   // 获取用户统计
   async getStats(): Promise<UserStats> {
-    const [emotions, chats] = await Promise.all([
-      emotionStorage.getAll(),
-      chatStorage.getAll()
-    ])
-    
+    const emotions = await emotionStorage.getAll()
+
     const user = await this.getUser()
-    
+
     // 计算平均效果
     const emotionsWithEffectiveness = emotions.filter(e => e.effectiveness)
     const avgEffectiveness = emotionsWithEffectiveness.length > 0
       ? emotionsWithEffectiveness.reduce((sum, e) => sum + (e.effectiveness || 0), 0) / emotionsWithEffectiveness.length
       : 0
-    
+
     // 计算连续使用天数
     const streak = await this.calculateStreak(emotions)
-    
+
     return {
       totalEmotions: emotions.length,
-      totalChats: chats.length,
       totalSOS: emotions.filter(e => e.copingMethod === 'sos-first-aid').length,
       avgEffectiveness: Math.round(avgEffectiveness * 10) / 10,
       memberSince: user?.createdAt || Date.now(),
