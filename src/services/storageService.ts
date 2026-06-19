@@ -6,6 +6,8 @@ import type {
   UserPreferences,
   StorageMetadata
 } from '../types/storage';
+import type { Conversation } from '../types';
+import { useChatStore } from '../store/chatStore';
 
 // 存储键名定义
 const STORAGE_KEYS = {
@@ -171,6 +173,7 @@ export const privacyService = {
     version: string;
     exportDate: string;
     emotions: EmotionRecord[];
+    chats: Conversation[];
     preferences: UserPreferences;
     metadata: StorageMetadata;
   }> {
@@ -180,10 +183,15 @@ export const privacyService = {
       getMetadata()
     ]);
 
+    // Chat history lives in useChatStore (localStorage); pull it in here so the
+    // export is a complete backup. zustand getState() is synchronous.
+    const chats = useChatStore.getState().conversations;
+
     return {
       version: '1.0',
       exportDate: new Date().toISOString(),
       emotions,
+      chats,
       preferences,
       metadata
     };
@@ -202,6 +210,9 @@ export const privacyService = {
       emotionCount: 0,
       firstUseDate: Date.now()
     });
+
+    // Clear chat history too, so "delete all data" is true to its name.
+    useChatStore.getState().clearAllConversations();
   },
 
   async getStorageStats(): Promise<{
