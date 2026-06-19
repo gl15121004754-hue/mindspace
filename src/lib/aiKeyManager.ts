@@ -1,5 +1,5 @@
 import type { AIProviderId, ApiKeySource } from '../types/aiProvider';
-import { AI_PROVIDERS } from '../types/aiProvider';
+import { PROVIDER_CATALOG } from '../config/aiCatalog';
 
 const STORAGE_KEY = 'mindspace-ai-config';
 
@@ -35,7 +35,7 @@ function getStoredConfig(): StoredConfig {
 }
 
 export function getApiKey(provider: AIProviderId): ApiKeySource {
-  const providerConfig = AI_PROVIDERS[provider];
+  const providerConfig = PROVIDER_CATALOG[provider];
 
   // Check localStorage customApiKeys from mindspace-ai-config
   const config = getStoredConfig();
@@ -174,18 +174,12 @@ export async function validateApiKey(provider: AIProviderId, apiKey: string): Pr
 }
 
 export function isProviderConfigured(provider: AIProviderId): boolean {
-  const providerConfig = AI_PROVIDERS[provider];
-  
-  // Provider doesn't exist
-  if (!providerConfig) {
+  // All catalog providers require an API key.
+  if (!PROVIDER_CATALOG[provider]) {
     return false;
   }
-  
-  const { key } = getApiKey(provider);
 
-  if (providerConfig.requiresApiKey === false) {
-    return true;
-  }
+  const { key } = getApiKey(provider);
 
   return !!key;
 }

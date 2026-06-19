@@ -2,6 +2,13 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { useConversations } from '../store/chatStore'
 import { useAppStore } from '../store/useAppStore'
 import { motion } from 'framer-motion'
+import {
+  computeStats,
+  emotionDistribution,
+  intensityDistribution,
+  recentTrend,
+  type InsightStats,
+} from '../lib/insights'
 
 // 情绪类型中英文映射
 const EMOTION_LABELS: Record<string, { label: string; emoji: string }> = {
@@ -24,15 +31,6 @@ const EMOTION_COLORS: Record<string, string> = {
   exhaustion: '#6B7280'
 }
 
-interface InsightStats {
-  totalEmotions: number
-  totalConversations: number
-  totalMessages: number
-  avgIntensity: number
-  dominantEmotion: string
-  sosCount: number
-  avgEffectiveness: number
-}
 
 // 纯 CSS 饼图组件
 const CSSPieChart: React.FC<{ data: { name: string; value: number; color: string }[] }> = ({ data }) => {
@@ -147,127 +145,28 @@ const InsightPage: React.FC = () => {
   const [stats, setStats] = useState<InsightStats | null>(null)
   const [timeRange, setTimeRange] = useState<'week' | 'month'>('week')
 
-  // 计算统计数据
+  // 概览统计 — 纯函数计算，timeRange 变化时重算
   useEffect(() => {
-    if (conversations.length === 0 && emotionHistory.length === 0) {
-      setStats(null)
-      return
-    }
-
-    const now = Date.now()
-    const weekAgo = now - 7 * 24 * 60 * 60 * 1000
-    const monthAgo = now - 30 * 24 * 60 * 60 * 1000
-    const cutoff = timeRange === 'week' ? weekAgo : monthAgo
-
-    // 过滤时间范围内的数据
-    const filteredEmotions = emotionHistory.filter(e => e.timestamp >= cutoff)
-    const filteredConversations = conversations.filter(c => c.startTime >= cutoff)
-
-    // 计算对话消息数
-    const totalMessages = filteredConversations.reduce(
-      (acc, conv) => acc + conv.messages.length, 0
-    )
-
-    // 计算平均强度
-    const avgIntensity = filteredEmotions.length > 0
-      ? filteredEmotions.reduce((acc, e) => acc + (e.intensity || 0), 0) / filteredEmotions.length
-      : 0
-
-    // 找出主导情绪
-    const emotionCount: Record<string, number> = {}
-    filteredEmotions.forEach(e => {
-      const key = e.emotion || '未知情绪'
-      emotionCount[key] = (emotionCount[key] || 0) + 1
-    })
-    const dominantEmotion = Object.entries(emotionCount)
-      .sort((a, b) => b[1] - a[1])[0]?.[0] || '无数据'
-
-    // 计算SOS次数和平均效果
-    const sosRecords = filteredEmotions.filter(e => e.copingMethod?.includes('sos'))
-    const avgEffectiveness = sosRecords.length > 0
-      ? sosRecords.reduce((acc, e) => acc + (e.effectiveness || 0), 0) / sosRecords.length
-      : 0
-
-    setStats({
-      totalEmotions: filteredEmotions.length,
-      totalConversations: filteredConversations.length,
-      totalMessages,
-      avgIntensity: Math.round(avgIntensity * 10) / 10,
-      dominantEmotion,
-      sosCount: sosRecords.length,
-      avgEffectiveness: Math.round(avgEffectiveness * 10) / 10
-    })
+    setStats(computeStats(emotionHistory, conversations, timeRange))
   }, [conversations, emotionHistory, timeRange])
 
   // 情绪分布数据
-  const emotionDistribution = useMemo(() => {
-    const now = Date.now()
-    const weekAgo = now - 7 * 24 * 60 * 60 * 1000
-    const cutoff = timeRange === 'week' ? weekAgo : now - 30 * 24 * 60 * 60 * 1000
-
-    const filteredEmotions = emotionHistory.filter(e => e.timestamp >= cutoff)
-    const distribution: Record<string, number> = {}
-
-    filteredEmotions.forEach(e => {
-      const key = e.emotion || '未知情绪'
-      distribution[key] = (distribution[key] || 0) + 1
-    })
-
-    return Object.entries(distribution).map(([emotion, count]) => ({
-      name: EMOTION_LABELS[emotion]?.label || emotion,
-      value: count,
-      color: EMOTION_COLORS[emotion] || '#6B7280'
-    }))
-  }, [emotionHistory, timeRange])
+  const emotionDistData = useMemo(
+    () => emotionDistribution(emotionHistory, timeRange, EMOTION_LABELS, EMOTION_COLORS),
+    [emotionHistory, timeRange]
+  )
 
   // 情绪强度分布
-  const intensityDistribution = useMemo(() => {
-    const now = Date.now()
-    const weekAgo = now - 7 * 24 * 60 * 60 * 1000
-    const cutoff = timeRange === 'week' ? weekAgo : now - 30 * 24 * 60 * 60 * 1000
-
-    const filteredEmotions = emotionHistory.filter(e => e.timestamp >= cutoff)
-    
-    // 按强度分组: 1-3轻微, 4-6中等, 7-8严重, 9-10极度
-    return [
-      { range: '1-3 轻微', count: 0, color: '#10B981' },
-      { range: '4-6 中等', count: 0, color: '#F59E0B' },
-      { range: '7-8 严重', count: 0, color: '#EF4444' },
-      { range: '9-10 极度', count: 0, color: '#8B5CF6' }
-    ].map(item => {
-      filteredEmotions.forEach(e => {
-        const intensity = e.intensity || 0
-        if (intensity <= 3 && item.range === '1-3 轻微') item.count++
-        else if (intensity >= 4 && intensity <= 6 && item.range === '4-6 中等') item.count++
-        else if (intensity >= 7 && intensity <= 8 && item.range === '7-8 严重') item.count++
-        else if (intensity >= 9 && item.range === '9-10 极度') item.count++
-      })
-      return item
-    })
-  }, [emotionHistory, timeRange])
+  const intensityDistData = useMemo(
+    () => intensityDistribution(emotionHistory, timeRange),
+    [emotionHistory, timeRange]
+  )
 
   // 最近7天的情绪记录
-  const recentEmotions = useMemo(() => {
-    const now = Date.now()
-    const days: Record<string, { date: string; avgIntensity: number; count: number }> = {}
-
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(now - i * 24 * 60 * 60 * 1000)
-      const dateKey = `${date.getMonth() + 1}月${date.getDate()}日`
-      days[dateKey] = { date: dateKey, avgIntensity: 0, count: 0 }
-    }
-
-    emotionHistory.forEach(e => {
-      const date = new Date(e.timestamp)
-      const dateKey = `${date.getMonth() + 1}月${date.getDate()}日`
-      if (days[dateKey]) {
-        days[dateKey].avgIntensity = (days[dateKey].avgIntensity * days[dateKey].count + e.intensity) / (days[dateKey].count + 1)
-        days[dateKey].count++
-      }
-    })
-
-    return Object.values(days)
-  }, [emotionHistory])
+  const recentEmotions = useMemo(
+    () => recentTrend(emotionHistory),
+    [emotionHistory]
+  )
 
   // 判断是否有数据
   const hasData = conversations.length > 0 || emotionHistory.length > 0
@@ -428,8 +327,8 @@ const InsightPage: React.FC = () => {
                 <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
                   🎭 情绪类型分布
                 </h3>
-                {emotionDistribution.length > 0 ? (
-                  <CSSPieChart data={emotionDistribution} />
+                {emotionDistData.length > 0 ? (
+                  <CSSPieChart data={emotionDistData} />
                 ) : (
                   <div className="text-center py-8 text-sm" style={{ color: 'var(--text-tertiary)' }}>
                     暂无情绪类型数据
@@ -448,8 +347,8 @@ const InsightPage: React.FC = () => {
                 <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
                   📊 情绪强度分布
                 </h3>
-                {intensityDistribution.some(d => d.count > 0) ? (
-                  <CSSBarChart data={intensityDistribution} />
+                {intensityDistData.some(d => d.count > 0) ? (
+                  <CSSBarChart data={intensityDistData} />
                 ) : (
                   <div className="text-center py-8 text-sm" style={{ color: 'var(--text-tertiary)' }}>
                     暂无强度分布数据

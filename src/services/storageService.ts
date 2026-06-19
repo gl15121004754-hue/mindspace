@@ -3,7 +3,6 @@ import { v4 as uuidv4 } from 'uuid';
 import type {
   EmotionRecord,
   SOSRecord,
-  ChatSession,
   UserPreferences,
   StorageMetadata
 } from '../types/storage';
@@ -12,7 +11,6 @@ import type {
 const STORAGE_KEYS = {
   EMOTIONS: 'mindspace_emotions',
   SOS_RECORDS: 'mindspace_sos_records',
-  CHATS: 'mindspace_chats',
   PREFERENCES: 'mindspace_preferences',
   METADATA: 'mindspace_metadata'
 } as const;
@@ -125,81 +123,6 @@ export const sosStorage = {
   }
 };
 
-// ============ 对话历史操作 ============
-
-export const chatStorage = {
-  async getAll(): Promise<ChatSession[]> {
-    return (await get<ChatSession[]>(STORAGE_KEYS.CHATS)) || [];
-  },
-
-  async add(session: Omit<ChatSession, 'id' | 'createdAt' | 'updatedAt'>): Promise<ChatSession> {
-    const now = Date.now();
-    const newSession: ChatSession = {
-      ...session,
-      id: uuidv4(),
-      createdAt: now,
-      updatedAt: now
-    };
-    
-    const all = await this.getAll();
-    await set(STORAGE_KEYS.CHATS, [...all, newSession]);
-    
-    // 清理过期对话（30天）
-    await this.cleanupExpired();
-    
-    return newSession;
-  },
-
-  async update(id: string, updates: Partial<ChatSession>): Promise<ChatSession | null> {
-    const all = await this.getAll();
-    const index = all.findIndex(s => s.id === id);
-    
-    if (index === -1) return null;
-    
-    const updated = {
-      ...all[index],
-      ...updates,
-      updatedAt: Date.now()
-    };
-    
-    all[index] = updated;
-    await set(STORAGE_KEYS.CHATS, all);
-    
-    return updated;
-  },
-
-  async getById(id: string): Promise<ChatSession | null> {
-    const all = await this.getAll();
-    return all.find(s => s.id === id) || null;
-  },
-
-  async delete(id: string): Promise<boolean> {
-    const all = await this.getAll();
-    const filtered = all.filter(s => s.id !== id);
-    
-    if (filtered.length === all.length) return false;
-    
-    await set(STORAGE_KEYS.CHATS, filtered);
-    return true;
-  },
-
-  async cleanupExpired(): Promise<void> {
-    const all = await this.getAll();
-    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const filtered = all.filter(s => s.updatedAt > thirtyDaysAgo);
-    
-    if (filtered.length !== all.length) {
-      await set(STORAGE_KEYS.CHATS, filtered);
-      await updateMetadata({ chatCount: filtered.length });
-    }
-  },
-
-  async clear(): Promise<void> {
-    await del(STORAGE_KEYS.CHATS);
-    await updateMetadata({ chatCount: 0 });
-  }
-};
-
 // ============ 用户偏好操作 ============
 
 export const preferencesStorage = {
@@ -228,7 +151,6 @@ async function getMetadata(): Promise<StorageMetadata> {
     createdAt: Date.now(),
     lastUpdated: Date.now(),
     emotionCount: 0,
-    chatCount: 0,
     firstUseDate: Date.now()
   };
 }
@@ -249,13 +171,11 @@ export const privacyService = {
     version: string;
     exportDate: string;
     emotions: EmotionRecord[];
-    chats: ChatSession[];
     preferences: UserPreferences;
     metadata: StorageMetadata;
   }> {
-    const [emotions, chats, preferences, metadata] = await Promise.all([
+    const [emotions, preferences, metadata] = await Promise.all([
       emotionStorage.getAll(),
-      chatStorage.getAll(),
       preferencesStorage.get(),
       getMetadata()
     ]);
@@ -264,7 +184,6 @@ export const privacyService = {
       version: '1.0',
       exportDate: new Date().toISOString(),
       emotions,
-      chats,
       preferences,
       metadata
     };
@@ -273,30 +192,26 @@ export const privacyService = {
   async deleteAllData(): Promise<void> {
     await Promise.all([
       emotionStorage.clear(),
-      chatStorage.clear(),
       del(STORAGE_KEYS.PREFERENCES)
     ]);
-    
+
     await set(STORAGE_KEYS.METADATA, {
       version: '1.0',
       createdAt: Date.now(),
       lastUpdated: Date.now(),
       emotionCount: 0,
-      chatCount: 0,
       firstUseDate: Date.now()
     });
   },
 
   async getStorageStats(): Promise<{
     emotionCount: number;
-    chatCount: number;
     storageSize: string;
     oldestRecord: number | null;
     newestRecord: number | null;
   }> {
-    const [emotions, chats, metadata] = await Promise.all([
+    const [emotions, metadata] = await Promise.all([
       emotionStorage.getAll(),
-      chatStorage.getAll(),
       getMetadata()
     ]);
 
@@ -305,12 +220,11 @@ export const privacyService = {
     const newest = allTimestamps.length > 0 ? Math.max(...allTimestamps) : null;
 
     // 估算存储大小
-    const jsonString = JSON.stringify({ emotions, chats, metadata });
+    const jsonString = JSON.stringify({ emotions, metadata });
     const size = new Blob([jsonString]).size;
 
     return {
       emotionCount: emotions.length,
-      chatCount: chats.length,
       storageSize: formatBytes(size),
       oldestRecord: oldest,
       newestRecord: newest

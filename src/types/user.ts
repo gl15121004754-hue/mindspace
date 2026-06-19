@@ -19,7 +19,6 @@ export interface RegisterForm {
 // 用户统计信息
 export interface UserStats {
   totalEmotions: number
-  totalChats: number
   totalSOS: number
   avgEffectiveness: number
   memberSince: number

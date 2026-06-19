@@ -10,7 +10,6 @@
     "axios": "^1.13.4",
     "framer-motion": "^10.0.1",
     "idb-keyval": "^6.2.2",
-    "openai": "^6.18.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.8.0",

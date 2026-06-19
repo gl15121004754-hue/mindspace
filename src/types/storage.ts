@@ -22,28 +22,6 @@ export interface SOSRecord {
   timestamp: number;
 }
 
-// 对话消息
-export interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: number;
-}
-
-// 对话会话
-export interface ChatSession {
-  id: string;
-  messages: ChatMessage[];
-  autoTags?: {
-    primaryEmotion: string;
-    intensity: number;
-    topics: string[];
-  };
-  summary?: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
 // 用户偏好
 export interface UserPreferences {
   theme: 'light' | 'dark' | 'auto';
@@ -61,6 +39,5 @@ export interface StorageMetadata {
   createdAt: number;
   lastUpdated: number;
   emotionCount: number;
-  chatCount: number;
   firstUseDate: number;
 }

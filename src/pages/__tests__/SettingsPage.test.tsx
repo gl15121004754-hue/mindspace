@@ -14,26 +14,24 @@ const renderWithRouter = (component: React.ReactNode) => {
 describe('SettingsPage', () => {
   const mockStore = {
     selectedProvider: 'openai',
-    selectedModel: 'gpt-4o-mini',
     customApiKeys: {},
     defaultModels: {},
     models: [],
     setProvider: vi.fn(),
     setApiKey: vi.fn(),
     clearApiKey: vi.fn(),
-    setDefaultModel: vi.fn(),
-    setSelectedModel: vi.fn(),
+    setModel: vi.fn(),
     validateApiKey: vi.fn(),
     isProviderConfigured: vi.fn(),
     getApiKey: vi.fn(),
     getApiBase: vi.fn(),
-    getCurrentModel: vi.fn(),
-    getSelectedAIModel: vi.fn(),
+    getCurrentModel: vi.fn(() => 'gpt-4o-mini'),
     getProviderModels: vi.fn(),
+    resolveChatConfig: vi.fn(),
   }
 
   beforeEach(() => {
-    vi.mocked(useAIConfigStore).mockReturnValue(mockStore)
+    vi.mocked(useAIConfigStore).mockReturnValue(mockStore as any)
     mockStore.isProviderConfigured.mockReturnValue(false)
   })
 
@@ -45,23 +43,15 @@ describe('SettingsPage', () => {
     expect(screen.getByText('选择提供商')).toBeInTheDocument()
     expect(screen.getByText('选择您偏好的 AI 服务提供商')).toBeInTheDocument()
     expect(screen.getByText('选择模型')).toBeInTheDocument()
-    expect(screen.getByText('为选中的提供商选择默认模型')).toBeInTheDocument()
   })
 
-  it('should render all 7 provider cards', () => {
+  it('should render all 6 provider cards from the catalog', () => {
     renderWithRouter(<SettingsPage />)
 
-    const providers = [
-      'OpenAI',
-      'Zhipu AI',
-      'Grok',
-      'Google Gemini',
-      'DeepSeek',
-      'MiniMax',
-      'Alibaba DashScope'
-    ]
+    // Catalog display names (config/aiCatalog.ts). 6 providers, no Gemini.
+    const providers = ['OpenAI', '智谱AI', 'Grok', 'DeepSeek', 'MiniMax', '阿里云通义千问']
 
-    providers.forEach(provider => {
+    providers.forEach((provider) => {
       expect(screen.getByText(provider)).toBeInTheDocument()
     })
   })
@@ -98,6 +88,19 @@ describe('ProviderSelector', () => {
     selectedProvider: 'openai',
     setProvider: vi.fn(),
     isProviderConfigured: vi.fn(),
+    // minimal stubs the selector/hooks may touch
+    customApiKeys: {},
+    defaultModels: {},
+    models: [],
+    setApiKey: vi.fn(),
+    clearApiKey: vi.fn(),
+    setModel: vi.fn(),
+    validateApiKey: vi.fn(),
+    getApiKey: vi.fn(),
+    getApiBase: vi.fn(),
+    getCurrentModel: vi.fn(),
+    getProviderModels: vi.fn(),
+    resolveChatConfig: vi.fn(),
   }
 
   beforeEach(() => {
@@ -115,30 +118,21 @@ describe('ProviderSelector', () => {
 })
 
 describe('ModelSelector', () => {
-  const mockModels = [
-    {
-      id: 'gpt-4o',
-      name: 'GPT-4o',
-      provider: 'openai' as const,
-      contextLength: 128000,
-      supportsStreaming: true
-    },
-    {
-      id: 'gpt-4o-mini',
-      name: 'GPT-4o Mini',
-      provider: 'openai' as const,
-      contextLength: 128000,
-      supportsStreaming: true
-    }
-  ]
-
   const mockStore = {
     selectedProvider: 'openai',
-    selectedModel: 'gpt-4o-mini',
+    customApiKeys: {},
+    defaultModels: {},
+    models: [],
     setProvider: vi.fn(),
-    setSelectedModel: vi.fn(),
+    setApiKey: vi.fn(),
+    clearApiKey: vi.fn(),
+    setModel: vi.fn(),
     isProviderConfigured: vi.fn(),
-    getProviderModels: vi.fn(() => mockModels),
+    getApiKey: vi.fn(),
+    getApiBase: vi.fn(),
+    getCurrentModel: vi.fn(),
+    getProviderModels: vi.fn(),
+    resolveChatConfig: vi.fn(),
   }
 
   beforeEach(() => {
