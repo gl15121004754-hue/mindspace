@@ -5,7 +5,7 @@
  */
 
 import { OpenAICompatibleAdapter } from './OpenAICompatibleAdapter.js';
-import { AI_PROVIDERS } from '../types/aiProvider.js';
+import { PROVIDER_CATALOG } from '../config/aiCatalog.js';
 
 /**
  * OpenAI Adapter
@@ -18,7 +18,7 @@ export class OpenAIAdapter extends OpenAICompatibleAdapter {
   constructor() {
     super({
       provider: 'openai',
-      apiBase: AI_PROVIDERS.openai.apiBase,
+      apiBase: PROVIDER_CATALOG.openai.apiBase,
     });
   }
 }

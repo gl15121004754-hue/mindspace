@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { ZhipuAdapter } from '../ZhipuAdapter';
-import { AI_PROVIDERS } from '../../types/aiProvider';
+import { PROVIDER_CATALOG } from '../../config/aiCatalog';
 
 describe('ZhipuAdapter', () => {
   describe('Instantiation', () => {
@@ -75,19 +75,19 @@ describe('ZhipuAdapter', () => {
   });
 
   describe('Provider Configuration', () => {
-    it('should use correct apiBase from AI_PROVIDERS', () => {
+    it('should use correct apiBase from PROVIDER_CATALOG', () => {
       const adapter = new ZhipuAdapter();
 
       expect(adapter.providerId).toBe('zhipu');
-      expect(AI_PROVIDERS.zhipu.apiBase).toBe('https://open.bigmodel.cn/api/paas/v4');
+      expect(PROVIDER_CATALOG.zhipu.apiBase).toBe('https://open.bigmodel.cn/api/paas/v4');
     });
 
     it('should use correct envVarName', () => {
-      expect(AI_PROVIDERS.zhipu.envVarName).toBe('VITE_ZHIPU_API_KEY');
+      expect(PROVIDER_CATALOG.zhipu.envVarName).toBe('VITE_ZHIPU_API_KEY');
     });
 
     it('should have defaultModel configured', () => {
-      expect(AI_PROVIDERS.zhipu.defaultModel).toBe('glm-4-flash');
+      expect(PROVIDER_CATALOG.zhipu.defaultModel).toBe('glm-4.7');
     });
   });
 });

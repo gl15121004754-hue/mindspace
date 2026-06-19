@@ -8,7 +8,7 @@
 import { OpenAI } from 'openai';
 import { AIProviderAdapter, ChatRequest, ChatResponse, APIError, ConfigError, StreamHandler } from '../types/adapter';
 import type { AIProviderId } from '../types/aiProvider';
-import { AI_PROVIDERS } from '../types/aiProvider';
+import { PROVIDER_CATALOG } from '../config/aiCatalog';
 import { getApiKey } from '../lib/aiKeyManager';
 
 /**
@@ -47,7 +47,7 @@ export class OpenAICompatibleAdapter implements AIProviderAdapter {
    * Initialize the OpenAI client with the provided configuration
    */
   private initializeClient(): void {
-    const providerConfig = AI_PROVIDERS[this.providerId];
+    const providerConfig = PROVIDER_CATALOG[this.providerId];
     
     if (!providerConfig) {
       console.warn(`[OpenAICompatibleAdapter] Unknown provider: ${this.providerId}`);
@@ -327,7 +327,7 @@ export class OpenAICompatibleAdapter implements AIProviderAdapter {
     try {
       const testClient = new OpenAI({
         apiKey: apiKey.trim(),
-        baseURL: this.config.apiBase ?? AI_PROVIDERS[this.providerId].apiBase,
+        baseURL: this.config.apiBase ?? PROVIDER_CATALOG[this.providerId].apiBase,
         dangerouslyAllowBrowser: true,
       });
 

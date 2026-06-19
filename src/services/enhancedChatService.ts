@@ -1,6 +1,5 @@
 import type { Message } from '../types'
-import { getApiKey } from '../lib/aiKeyManager'
-import type { AIProviderId } from '../types/aiProvider'
+import { useAIConfigStore } from '../store/aiConfigStore'
 
 // 消息类型
 interface ChatMessage {
@@ -16,32 +15,10 @@ interface AIResponse {
   emotionTags?: string[]
 }
 
-// 提供商API配置
-const PROVIDER_CONFIG: Record<AIProviderId, { apiUrl: string; model: string }> = {
-  openai: {
-    apiUrl: 'https://api.openai.com/v1/chat/completions',
-    model: 'gpt-4o-mini'
-  },
-  zhipu: {
-    apiUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
-    model: 'glm-4-flash'
-  },
-  grok: {
-    apiUrl: 'https://api.x.ai/v1/chat/completions',
-    model: 'grok-4'
-  },
-  deepseek: {
-    apiUrl: 'https://api.deepseek.com/chat/completions',
-    model: 'deepseek-chat'
-  },
-  minimax: {
-    apiUrl: 'https://api.minimax.chat/v1/text/chatcompletion_v2',
-    model: 'MiniMax-M2.1'
-  },
-  alibaba: {
-    apiUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-    model: 'qwen-plus'
-  }
+/** Endpoint + model resolved by the store from the single catalog. */
+interface EndpointConfig {
+  apiUrl: string
+  model: string
 }
 
 // MindSpace核心系统提示词
@@ -89,44 +66,6 @@ const EMOTION_KEYWORDS = {
   stress: ['压力', '压抑', '喘不过气', '承受不住']
 }
 
-// 获取存储的配置
-function getStoredConfig(): { selectedProvider: AIProviderId; customApiKeys: Record<string, string> } {
-  if (typeof window === 'undefined') {
-    return { selectedProvider: 'alibaba', customApiKeys: {} }
-  }
-  
-  try {
-    const stored = localStorage.getItem('mindspace-ai-config')
-    if (stored) {
-      return JSON.parse(stored)
-    }
-  } catch (error) {
-    console.error('[AI Config] 读取配置失败:', error)
-  }
-  
-  return { selectedProvider: 'alibaba', customApiKeys: {} }
-}
-
-// 获取当前提供商和API Key
-function getProviderApiKey(): { key: string; provider: AIProviderId } {
-  const config = getStoredConfig()
-  const provider = config.selectedProvider
-  
-  // 检查该提供商是否有自定义key
-  const customKey = config.customApiKeys?.[provider]
-  if (customKey?.trim()) {
-    return { key: customKey.trim(), provider }
-  }
-  
-  // 从aiKeyManager获取（会检查env变量）
-  const { key } = getApiKey(provider)
-  if (key) {
-    return { key, provider }
-  }
-  
-  return { key: '', provider }
-}
-
 /**
  * 检测危机关键词
  */
@@ -169,24 +108,21 @@ function extractEmotionTags(text: string): string[] {
  */
 async function callAIAPI(
   messages: ChatMessage[],
-  provider: AIProviderId,
+  endpoint: EndpointConfig,
   apiKey: string,
   onStream?: (chunk: string) => void
 ): Promise<string> {
-  const config = PROVIDER_CONFIG[provider]
-  
   console.log('🔍 准备调用 AI API')
-  console.log('📤 提供商:', provider)
-  console.log('📤 API URL:', config.apiUrl)
-  console.log('📤 模型:', config.model)
+  console.log('📤 API URL:', endpoint.apiUrl)
+  console.log('📤 模型:', endpoint.model)
   console.log('🔑 API Key前缀:', apiKey.substring(0, 10) + '...')
   console.log('💬 消息数量:', messages.length)
   console.log('🌊 流式响应模式:', !!onStream)
 
   if (onStream) {
-    return await callOpenAIStream(messages, onStream, apiKey, config)
+    return await callOpenAIStream(messages, onStream, apiKey, endpoint)
   } else {
-    return await callOpenAINonStream(messages, apiKey, config)
+    return await callOpenAINonStream(messages, apiKey, endpoint)
   }
 }
 
@@ -352,14 +288,24 @@ export async function sendChatMessage(
   // 情绪标签提取
   const emotionTags = extractEmotionTags(userMessage)
   console.log('🏷️ 情绪标签:', emotionTags)
-  
-  // 获取提供商配置
-  const { key: apiKey, provider } = getProviderApiKey()
+
+  // Resolve provider/url/model/key from the store (single source of truth).
+  const { provider, apiUrl, model, apiKey } = useAIConfigStore.getState().resolveChatConfig()
   console.log('📤 使用提供商:', provider)
-  
+
+  if (!apiUrl || !model) {
+    console.log('[AI Config] 未知提供商，使用备用回复')
+    return {
+      content: generateFallbackResponse(userMessage),
+      needsSOS: false,
+      crisis: false,
+      emotionTags
+    }
+  }
+
   if (!apiKey) {
     console.log('[AI Config] 未配置 API Key，使用备用回复')
-    const fallbackContent = generateFallbackResponse(userMessage) + 
+    const fallbackContent = generateFallbackResponse(userMessage) +
       '\n\n💡 小提示：你可以去「AI 设置」页面配置 API Key，让我变得更聪明哦~'
     return {
       content: fallbackContent,
@@ -387,7 +333,7 @@ export async function sendChatMessage(
     }
 
     // 调用AI API
-    const content = await callAIAPI(fullMessages, provider, apiKey, onStream)
+    const content = await callAIAPI(fullMessages, { apiUrl, model }, apiKey, onStream)
     
     return {
       content,

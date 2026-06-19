@@ -7,7 +7,7 @@ import { useAIConfigStore } from '../store/aiConfigStore'
 
 const SettingsPage: React.FC = () => {
   const selectedProvider = useAIConfigStore((state) => state.selectedProvider)
-  const selectedModel = useAIConfigStore((state) => state.selectedModel)
+  const effectiveModel = useAIConfigStore((state) => state.getCurrentModel())
   const isProviderConfigured = useAIConfigStore((state) => state.isProviderConfigured)
   
   const formatProviderName = (provider: string) => {
@@ -63,15 +63,15 @@ const SettingsPage: React.FC = () => {
                 </div>
                 
                 {/* 模型标签 */}
-                {selectedModel && selectedProvider && (
-                  <div 
+                {effectiveModel && selectedProvider && (
+                  <div
                     className="px-3 py-1.5 rounded-lg text-sm font-medium"
                     style={{
                       backgroundColor: 'var(--bg-tertiary)',
                       color: 'var(--text-primary)'
                     }}
                   >
-                    模型: {selectedModel}
+                    模型: {effectiveModel}
                   </div>
                 )}
               </div>

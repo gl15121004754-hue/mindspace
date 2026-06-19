@@ -5,7 +5,7 @@
  */
 
 import { OpenAICompatibleAdapter } from './OpenAICompatibleAdapter.js';
-import { AI_PROVIDERS } from '../types/aiProvider.js';
+import { PROVIDER_CATALOG } from '../config/aiCatalog.js';
 
 /**
  * Grok Adapter
@@ -18,7 +18,7 @@ export class GrokAdapter extends OpenAICompatibleAdapter {
   constructor() {
     super({
       provider: 'grok',
-      apiBase: AI_PROVIDERS.grok.apiBase,
+      apiBase: PROVIDER_CATALOG.grok.apiBase,
     });
   }
 }

@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { DeepSeekAdapter } from '../DeepSeekAdapter';
-import { AI_PROVIDERS } from '../../types/aiProvider';
+import { PROVIDER_CATALOG } from '../../config/aiCatalog';
 
 describe('DeepSeekAdapter', () => {
   describe('Instantiation', () => {
@@ -75,19 +75,19 @@ describe('DeepSeekAdapter', () => {
   });
 
   describe('Provider Configuration', () => {
-    it('should use correct apiBase from AI_PROVIDERS', () => {
+    it('should use correct apiBase from PROVIDER_CATALOG', () => {
       const adapter = new DeepSeekAdapter();
 
       expect(adapter.providerId).toBe('deepseek');
-      expect(AI_PROVIDERS.deepseek.apiBase).toBe('https://api.deepseek.com/v1');
+      expect(PROVIDER_CATALOG.deepseek.apiBase).toBe('https://api.deepseek.com/v1');
     });
 
     it('should use correct envVarName', () => {
-      expect(AI_PROVIDERS.deepseek.envVarName).toBe('VITE_DEEPSEEK_API_KEY');
+      expect(PROVIDER_CATALOG.deepseek.envVarName).toBe('VITE_DEEPSEEK_API_KEY');
     });
 
     it('should have defaultModel configured', () => {
-      expect(AI_PROVIDERS.deepseek.defaultModel).toBe('deepseek-chat');
+      expect(PROVIDER_CATALOG.deepseek.defaultModel).toBe('deepseek-chat');
     });
   });
 });

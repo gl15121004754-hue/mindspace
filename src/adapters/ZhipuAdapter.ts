@@ -5,7 +5,7 @@
  */
 
 import { OpenAICompatibleAdapter } from './OpenAICompatibleAdapter.js';
-import { AI_PROVIDERS } from '../types/aiProvider.js';
+import { PROVIDER_CATALOG } from '../config/aiCatalog.js';
 
 /**
  * Zhipu AI Adapter
@@ -19,7 +19,7 @@ export class ZhipuAdapter extends OpenAICompatibleAdapter {
   constructor() {
     super({
       provider: 'zhipu',
-      apiBase: AI_PROVIDERS.zhipu.apiBase,
+      apiBase: PROVIDER_CATALOG.zhipu.apiBase,
     });
   }
 }

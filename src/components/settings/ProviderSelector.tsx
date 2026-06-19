@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { useAIConfigStore } from '../../store/aiConfigStore'
-import { AI_PROVIDERS, type AIProviderId } from '../../types/aiProvider'
+import { getAllProviders } from '../../config/aiCatalog'
+import type { AIProviderId } from '../../types/aiProvider'
 
 const PROVIDER_ICONS: Record<AIProviderId, JSX.Element> = {
   openai: (
@@ -42,7 +43,7 @@ const ProviderSelector: React.FC = () => {
   const isProviderConfigured = useAIConfigStore((state) => state.isProviderConfigured)
   const prevProviderRef = useRef<AIProviderId | null>(null)
 
-  const providers = Object.values(AI_PROVIDERS)
+  const providers = getAllProviders()
 
   const handleProviderClick = (providerId: AIProviderId) => {
     setProvider(providerId)

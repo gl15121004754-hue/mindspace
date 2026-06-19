@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useAIConfigStore } from '../../store/aiConfigStore'
-import { AI_PROVIDERS, type AIProviderId } from '../../types/aiProvider'
+import { getProvider } from '../../config/aiCatalog'
+import type { AIProviderId } from '../../types/aiProvider'
 
 const ApiKeySection: React.FC = () => {
   const selectedProvider = useAIConfigStore((state) => state.selectedProvider)
@@ -14,7 +15,7 @@ const ApiKeySection: React.FC = () => {
   const [isValidating, setIsValidating] = useState(false)
   const [showCurrentKey, setShowCurrentKey] = useState(false)
 
-  const currentProvider = AI_PROVIDERS[selectedProvider]
+  const currentProvider = getProvider(selectedProvider)!
   const storedKey = getApiKey(selectedProvider)
   const hasKey = !!storedKey
 

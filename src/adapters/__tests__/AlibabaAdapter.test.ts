@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { AlibabaAdapter } from '../AlibabaAdapter';
-import { AI_PROVIDERS } from '../../types/aiProvider';
+import { PROVIDER_CATALOG } from '../../config/aiCatalog';
 
 describe('AlibabaAdapter', () => {
   describe('Instantiation', () => {
@@ -75,19 +75,19 @@ describe('AlibabaAdapter', () => {
   });
 
   describe('Provider Configuration', () => {
-    it('should use correct apiBase from AI_PROVIDERS', () => {
+    it('should use correct apiBase from PROVIDER_CATALOG', () => {
       const adapter = new AlibabaAdapter();
 
       expect(adapter.providerId).toBe('alibaba');
-      expect(AI_PROVIDERS.alibaba.apiBase).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1');
+      expect(PROVIDER_CATALOG.alibaba.apiBase).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1');
     });
 
     it('should use correct envVarName', () => {
-      expect(AI_PROVIDERS.alibaba.envVarName).toBe('VITE_DASHSCOPE_API_KEY');
+      expect(PROVIDER_CATALOG.alibaba.envVarName).toBe('VITE_DASHSCOPE_API_KEY');
     });
 
     it('should have defaultModel configured', () => {
-      expect(AI_PROVIDERS.alibaba.defaultModel).toBe('qwen-plus');
+      expect(PROVIDER_CATALOG.alibaba.defaultModel).toBe('qwen-plus');
     });
   });
 });

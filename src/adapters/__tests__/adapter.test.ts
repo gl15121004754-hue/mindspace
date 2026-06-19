@@ -172,7 +172,7 @@ describe('Adapter Architecture', () => {
 
       expect(providers).toContain('openai');
       expect(providers).toContain('deepseek');
-      expect(providers).toHaveLength(7);
+      expect(providers).toHaveLength(6);
     });
   });
 });

@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { GrokAdapter } from '../GrokAdapter';
-import { AI_PROVIDERS } from '../../types/aiProvider';
+import { PROVIDER_CATALOG } from '../../config/aiCatalog';
 
 describe('GrokAdapter', () => {
   describe('Instantiation', () => {
@@ -75,19 +75,19 @@ describe('GrokAdapter', () => {
   });
 
   describe('Provider Configuration', () => {
-    it('should use correct apiBase from AI_PROVIDERS', () => {
+    it('should use correct apiBase from PROVIDER_CATALOG', () => {
       const adapter = new GrokAdapter();
 
       expect(adapter.providerId).toBe('grok');
-      expect(AI_PROVIDERS.grok.apiBase).toBe('https://api.x.ai/v1');
+      expect(PROVIDER_CATALOG.grok.apiBase).toBe('https://api.x.ai/v1');
     });
 
     it('should use correct envVarName', () => {
-      expect(AI_PROVIDERS.grok.envVarName).toBe('VITE_GROK_API_KEY');
+      expect(PROVIDER_CATALOG.grok.envVarName).toBe('VITE_GROK_API_KEY');
     });
 
-    it('should have defaultModel configured', () => {
-      expect(AI_PROVIDERS.grok.defaultModel).toBe('grok-beta');
+    it('should have defaultModel configured (curated, not the deprecated beta)', () => {
+      expect(PROVIDER_CATALOG.grok.defaultModel).toBe('grok-4');
     });
   });
 });
