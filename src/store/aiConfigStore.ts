@@ -9,7 +9,6 @@ import {
   type AIModel,
 } from '../config/aiCatalog';
 import { validateApiKey as validateKey, isProviderConfigured as checkConfigured } from '../lib/aiKeyManager';
-import { adapterFactory } from '../adapters/AdapterFactory';
 
 const STORAGE_KEY = 'mindspace-ai-config';
 
@@ -131,22 +130,7 @@ export const useAIConfigStore = create<AIConfigStore>((set, get) => {
       saveToStorage({ ...get() });
     },
 
-    validateApiKey: async (provider, apiKey) => {
-      // MiniMax 和部分提供商使用简化的直接验证，避免 CORS 问题
-      if (provider === 'minimax' || provider === 'zhipu') {
-        return validateKey(provider, apiKey);
-      }
-
-      try {
-        const adapter = adapterFactory.getAdapter(provider);
-        if (adapter.validateApiKey) {
-          return adapter.validateApiKey(apiKey);
-        }
-      } catch {
-        // Fall back to default validation if adapter doesn't support it
-      }
-      return validateKey(provider, apiKey);
-    },
+    validateApiKey: async (provider, apiKey) => validateKey(provider, apiKey),
 
     isProviderConfigured: (provider) => {
       return checkConfigured(provider);

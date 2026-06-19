@@ -9,7 +9,7 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useAIConfigStore } from '../aiConfigStore';
 
 describe('aiConfigStore.resolveChatConfig', () => {
@@ -113,5 +113,48 @@ describe('aiConfigStore.getCurrentModel', () => {
     });
 
     expect(useAIConfigStore.getState().getCurrentModel()).toBe('glm-4.6');
+  });
+});
+
+describe('aiConfigStore.validateApiKey delegation', () => {
+  // After deleting the adapter stack, store.validateApiKey must delegate to
+  // aiKeyManager.validateApiKey for ALL providers (no per-provider branching).
+  beforeEach(() => {
+    localStorage.clear();
+    useAIConfigStore.setState({
+      selectedProvider: 'openai',
+      customApiKeys: {},
+      defaultModels: {},
+    });
+  });
+
+  it('delegates to aiKeyManager.validateApiKey with provider + key', async () => {
+    // aiKeyManager.validateApiKey makes a real fetch; stub the network so the
+    // test asserts the delegation contract, not provider connectivity.
+    const fetchStub = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 200 }));
+
+    const ok = await useAIConfigStore.getState().validateApiKey('openai', 'sk-test-123');
+
+    expect(ok).toBe(true);
+    // The call went to the OpenAI /models endpoint (proves delegation routed
+    // through aiKeyManager, which special-cases minimax but uses /models here).
+    expect(fetchStub).toHaveBeenCalled();
+    const calledUrl = fetchStub.mock.calls[0][0];
+    expect(String(calledUrl)).toContain('api.openai.com');
+
+    fetchStub.mockRestore();
+  });
+
+  it('returns false for an empty key without delegating to the network', async () => {
+    const fetchStub = vi.spyOn(globalThis, 'fetch');
+
+    const ok = await useAIConfigStore.getState().validateApiKey('openai', '   ');
+
+    expect(ok).toBe(false);
+    expect(fetchStub).not.toHaveBeenCalled();
+
+    fetchStub.mockRestore();
   });
 });
