@@ -12,6 +12,7 @@ import type {
   UserPreferences,
   StorageMetadata
 } from '../types/storage';
+import type { Conversation } from '../types';
 
 interface AppState {
   // 状态
@@ -41,6 +42,7 @@ interface AppState {
     version: string;
     exportDate: string;
     emotions: EmotionRecord[];
+    chats: Conversation[];
     preferences: UserPreferences;
     metadata: StorageMetadata;
   }>;
