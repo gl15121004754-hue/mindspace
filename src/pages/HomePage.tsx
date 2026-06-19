@@ -1,19 +1,68 @@
-import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { useThemeStore } from '../store/themeStore'
+/**
+ * HomePage — the daily-first homepage (Issue #10).
+ *
+ * Issue #10 redefines the homepage: daily recording becomes the primary entry,
+ * with SOS demoted to a clear but secondary button (see ADR-0002 retention
+ * strategy). The main CTA is "今天感觉怎么样？" → /daily-record.
+ *
+ * Layout (top to bottom):
+ *   - theme toggle (top-right, unchanged logic from the old homepage)
+ *   - MindSpace logo + calm greeting
+ *   - 今日卡片 (only when a daily record exists today): the most recent
+ *     today's daily record — emoji + label + intensity + aiReflection summary
+ *   - primary CTA "今天感觉怎么样？" → /daily-record (accent, full-width)
+ *   - secondary entry "看看过去的我 →" → /timeline
+ *   - demoted SOS button "现在很难受？→ 立即急救" → /sos/emotion (outline style)
+ */
 
-const HomePage = () => {
-  const navigate = useNavigate()
-  const { theme, toggleTheme } = useThemeStore()
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { useThemeStore } from '../store/themeStore';
+import { useAppStore } from '../store/useAppStore';
+import { DAILY_EMOTIONS } from '../lib/dailyRecord';
+import type { EmotionRecord } from '../types/storage';
 
-  const handleSOSClick = () => {
-    navigate('/sos/emotion')
-  }
+/** True when `ts` falls on the same calendar day (local) as now. */
+function isToday(ts: number): boolean {
+  const now = new Date();
+  const d = new Date(ts);
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+}
+
+const HomePage: React.FC = () => {
+  const navigate = useNavigate();
+  const { theme, toggleTheme } = useThemeStore();
+  const emotionHistory = useAppStore((s) => s.emotionHistory);
+
+  // Most recent daily record logged today (if any). Drives the 今日卡片.
+  const todaysDaily = useMemo<EmotionRecord | null>(() => {
+    const today = emotionHistory
+      .filter((r) => r.source === 'daily' && isToday(r.timestamp))
+      .sort((a, b) => b.timestamp - a.timestamp);
+    return today[0] ?? null;
+  }, [emotionHistory]);
+
+  const emotionOption = (key: string) => DAILY_EMOTIONS.find((e) => e.key === key);
+  const emotionLabel = (key: string) => emotionOption(key)?.label ?? key;
+  const emotionEmoji = (key: string) => emotionOption(key)?.emoji ?? '•';
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-6 relative transition-colors" style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+    <div
+      className="flex flex-col items-center justify-center min-h-screen px-6 py-10 relative transition-colors"
+      style={{
+        backgroundColor: 'var(--bg-primary)',
+        color: 'var(--text-primary)',
+      }}
+    >
+      {/* theme toggle (top-right, reused logic) */}
       <motion.button
         onClick={toggleTheme}
+        aria-label="切换主题"
         className="absolute top-6 right-6 p-3 rounded-full transition-all hover:scale-105"
         style={{ backgroundColor: 'var(--bg-secondary)' }}
         whileTap={{ scale: 0.95 }}
@@ -29,103 +78,127 @@ const HomePage = () => {
         )}
       </motion.button>
 
-      {/* Logo和标题 */}
+      {/* Logo + calm greeting */}
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="text-center mb-6"
+        className="text-center mb-8"
       >
         <div className="w-24 h-24 rounded-3xl flex items-center justify-center mb-6 mx-auto shadow-xl bg-gradient-to-br from-purple-400 to-pink-500">
           <span className="text-3xl text-white font-bold">M</span>
         </div>
-        <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>MindSpace</h1>
-        <p className="text-lg font-medium" style={{ color: 'var(--accent)' }}>60秒情绪急救</p>
-      </motion.div>
-
-      {/* 产品描述 */}
-      <motion.div
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-        className="text-center max-w-sm mb-8"
-      >
-        <p className="text-lg leading-relaxed font-medium">
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 dark:from-purple-300 dark:to-pink-300">
-            当你感到情绪崩溃时
-          </span>
-          <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 dark:from-purple-300 dark:to-pink-300">
-            我们懂你，陪伴你
-          </span>
+        <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
+          MindSpace
+        </h1>
+        <p className="text-base font-medium" style={{ color: 'var(--text-secondary)' }}>
+          慢慢来，这里有一刻属于你。
         </p>
       </motion.div>
 
-      {/* 开始急救按钮 */}
-      <motion.button
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.4 }}
-        onClick={handleSOSClick}
-        className="w-full max-w-sm flex items-center justify-center gap-3 mb-10 relative overflow-hidden font-semibold text-white rounded-2xl transition-all"
-        style={{ 
-          backgroundColor: 'var(--accent)',
-          boxShadow: '0 10px 30px -8px var(--accent)',
-          padding: '1rem 2.5rem', 
-          fontSize: '1.125rem'
-        }}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-      >
-        开始急救
-        <motion.span
-          className="arrow-right"
-          animate={{ x: [0, 4, 0] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
+      <div className="w-full max-w-sm flex flex-col gap-5">
+        {/* 今日卡片 — only when a daily record exists today */}
+        {todaysDaily && (
+          <motion.section
+            initial={{ y: 12, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.4 }}
+            className="p-4 rounded-2xl border"
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              borderColor: 'var(--border-color)',
+            }}
+          >
+            <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
+              今日卡片
+            </p>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">{emotionEmoji(todaysDaily.emotion)}</span>
+              <span className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>
+                {emotionLabel(todaysDaily.emotion)}
+              </span>
+              <span
+                className="text-xs px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)' }}
+              >
+                强度 {todaysDaily.intensity}
+              </span>
+            </div>
+            {todaysDaily.aiReflection && (
+              <p className="text-sm leading-relaxed italic" style={{ color: 'var(--text-secondary)' }}>
+                {todaysDaily.aiReflection}
+              </p>
+            )}
+          </motion.section>
+        )}
+
+        {/* PRIMARY CTA — daily record (visual focus) */}
+        <motion.button
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          onClick={() => navigate('/daily-record')}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="w-full flex flex-col items-center justify-center gap-1 font-semibold text-white rounded-2xl transition-all"
+          style={{
+            backgroundColor: 'var(--accent)',
+            boxShadow: '0 10px 30px -8px var(--accent)',
+            padding: '1.5rem 2rem',
+            fontSize: '1.25rem',
+          }}
         >
-          →
-        </motion.span>
-      </motion.button>
+          <span>今天感觉怎么样？</span>
+          <span className="text-sm font-normal opacity-90">点一下，记一笔心情</span>
+          <motion.span
+            className="arrow-right"
+            animate={{ x: [0, 4, 0] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
+            →
+          </motion.span>
+        </motion.button>
 
-      {/* 功能说明 */}
-      <motion.div
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.6 }}
-        className="text-center max-w-sm"
-      >
-        <div className="grid grid-cols-3 gap-6">
-          <div className="text-center">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ color: 'var(--accent)' }}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <p className="text-sm font-medium mb-1" style={{ color: 'var(--accent)' }}>秒级响应</p>
-            <p className="text-xs" style={{ color: 'var(--text-quaternary)' }}>随时在线</p>
-          </div>
-          <div className="text-center">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ color: 'var(--accent)' }}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-            </div>
-            <p className="text-sm font-medium mb-1" style={{ color: 'var(--accent)' }}>AI共情</p>
-            <p className="text-xs" style={{ color: 'var(--text-quaternary)' }}>深度理解</p>
-          </div>
-          <div className="text-center">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} style={{ color: 'var(--accent)' }}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <p className="text-sm font-medium mb-1" style={{ color: 'var(--accent)' }}>私密空间</p>
-            <p className="text-xs" style={{ color: 'var(--text-quaternary)' }}>安全无忧</p>
-          </div>
-        </div>
-      </motion.div>
+        {/* timeline entry */}
+        <motion.button
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          onClick={() => navigate('/timeline')}
+          whileTap={{ scale: 0.98 }}
+          className="w-full flex items-center justify-center gap-2 font-medium rounded-2xl transition-all"
+          style={{
+            color: 'var(--text-primary)',
+            backgroundColor: 'transparent',
+            border: '1px solid var(--border-color)',
+            padding: '0.9rem 1.5rem',
+            fontSize: '0.95rem',
+          }}
+        >
+          看看过去的我 →
+        </motion.button>
+
+        {/* SOS — demoted to secondary (outline style, smaller than daily CTA) */}
+        <motion.button
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          onClick={() => navigate('/sos/emotion')}
+          whileTap={{ scale: 0.98 }}
+          className="w-full flex items-center justify-center gap-2 font-medium rounded-2xl transition-all"
+          style={{
+            color: 'var(--accent)',
+            backgroundColor: 'transparent',
+            border: '2px solid var(--accent)',
+            padding: '0.75rem 1.5rem',
+            fontSize: '0.9rem',
+          }}
+        >
+          现在很难受？→ 立即急救
+        </motion.button>
+      </div>
     </div>
-  )
-}
+  );
+};
 
-export default HomePage
+export default HomePage;
